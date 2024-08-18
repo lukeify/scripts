@@ -11,7 +11,7 @@
 # have keyslots that are unlocked via FIDO2 devices only.
 for dev in $(dmsetup ls --target crypt | awk '{print $1}'); do
   blkdev=$(cryptsetup status "$dev" | grep device | awk '{print $2}')
-  echo $blkdev
+  echo "$blkdev"
 
   if cryptsetup luksDump "$blkdev" | grep -q "fido2" && cryptsetup status "$dev" | grep -q "is active"; then
     echo "$dev is open and is unlocked via FIDO2"
