@@ -14,7 +14,74 @@
 # Early exit if a command fails.
 set -e
 
-# Parse the first argument as either the string "open" or "close".
+##
+# Opens a block device. This is a three command process:
+#
+# 1. Use `losetup` to
+# 2. `cryptsetup-open` to open the loop device, unlocking using FIDO2.
+#    https://man7.org/linux/man-pages/man8/cryptsetup-open.8.html
+# 3. Mount loop device using `mount`.
+#
+open_block_device () {
+  loop_device=$(losetup -f --show "$1")
+  # TODO: Check if the command succeeded first.
+  #  if ! losetup -f $1 2>&2; then
+  #    exit 1
+  #  fi
+
+  # shellcheck disable=SC2001
+  # sed is perfectly fine here
+  device_number=$(echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/')
+  cryptsetup open "$loop_device" "${device_number}.encryptedvolume"
+# TODO: Handle failure
+  # Create the directory that the block device will be mounted to.
+  mkdir /mnt/"${device_number}"
+  mount /dev/mapper/"${device_number}".encryptedvolume /mnt/"${device_number}"
+}
+
+##
+# Closes a block device given by the filename.
+#
+#
+close_block_device() {
+  # Given the file name of the encrypted LUKS block device, find the corresponding mapper by interrogating
+  # `cryptsetup status` which will list out the backing file.
+  for mapper in /dev/mapper/*; do
+    output=$(cryptsetup status "$(basename "$mapper")")
+
+    if echo "$output" | grep -q "$1"; then
+      found_mapper=$(basename "$mapper")
+      found_loop_device=$(echo "$output" | grep 'loop:' | awk '{print $2}')
+      echo "FOUND!"
+      echo "$output"
+      break
+    fi
+  done
+
+  if [ -z "$found_mapper" ]; then
+    echo "No mapper was found for $1"
+    exit 1
+  fi
+
+  # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
+  block_numerical_identifier=$(echo "$found_mapper" | awk -F'.' '{print $1}')
+
+  # Unmount the block, and delete the mount point
+  umount "/mnt/$block_numerical_identifier"
+  rm -r "/mnt/${block_numerical_identifier:?}"
+
+  cryptsetup close "$found_mapper"
+  losetup -d "$found_loop_device"
+}
+
+close_all_block_devices() {
+  for mapper in /dev/mapper/*; do
+
+  done
+}
+
+# Parse the first argument as either the string "open" or "close", and assign the function to be called to the
+# variable `$call`. If the argument provided is "close_all", call the corresponding method and finish.
 case "$1" in
   open)
     call=open_block_device
@@ -22,6 +89,10 @@ case "$1" in
   close)
     call=close_block_device
     ;;
+  close_all)
+    echo "Closing all block devices"
+    close_all_block_devices
+    exit 0
   *)
     echo "Please provide either 'open' or 'close to 'encrypted_block_devices." &>2
     exit 1
@@ -34,7 +105,7 @@ block_device_paths=("${@:2}")
 # TODO: If path count is 0, open or close all files in the current directory.
 
 for block_device_path in "${block_device_paths[@]}"; do
-  echo "Block device: ${block_device_path}"
+  # echo "Block device: ${block_device_path}"
   # When given a file, run the user-specified function on the block device path.
   if [ -f "$block_device_path" ]; then
     # Perform file operation
@@ -47,40 +118,3 @@ for block_device_path in "${block_device_paths[@]}"; do
     exit 1
   fi
 done
-
-# If given a file
-  # Run the "open_block_device" function on it.
-# If given an array of files
-  # Run the "open_block_device" function on all files
-# If given a directory
-  # Run the "open_block_device" function on each top-level file in the directory
-
-# Opens a block device. This is a three command process:
-#
-# 1. Use `losetup` to
-# 2. `cryptsetup-open` to
-# https://man7.org/linux/man-pages/man8/cryptsetup-open.8.html
-#
-open_block_device () {
-  loop_device=$(losetup -f --show $1)
-# TODO: Check if the command succeeded first.
-#  if ! losetup -f $1 2>&2; then
-#    exit 1
-#  fi
-
-# TODO: Generate a better name for the mapping
-  # shellcheck disable=SC2001
-  # sed is perfectly fine here
-  device_number=$(echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/')
-  cryptsetup open "$loop_device" "${device_number}.encryptedvolume" --fido2-device=auto
-# TODO: Handle failure
-
-  mount /dev/mapper/"${device_number}".encryptedvolume /mnt/"${device_number}"
-}
-
-close_block_device() {
-  umount "$1"
-  # TODO: What to close?
-  cryptsetup close
-  losetup -d /dev/loop"$1"
-}
