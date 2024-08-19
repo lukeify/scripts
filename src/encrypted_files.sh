@@ -22,6 +22,9 @@ set -e
 #    https://man7.org/linux/man-pages/man8/cryptsetup-open.8.html
 # 3. Mount loop device using `mount`.
 #
+# Args:
+# 1. The name of the file to be opened, i.e. `test.encrypted`.
+#
 open_block_device () {
   loop_device=$(losetup -f --show "$1")
   # TODO: Check if the command succeeded first.
@@ -42,6 +45,8 @@ open_block_device () {
 ##
 # Closes a block device given by the filename.
 #
+# Args:
+# 1. The name of the file to be closed, i.e. `test.encrypted`.
 #
 close_block_device() {
   # Given the file name of the encrypted LUKS block device, find the corresponding mapper by interrogating
@@ -50,33 +55,62 @@ close_block_device() {
     output=$(cryptsetup status "$(basename "$mapper")")
 
     if echo "$output" | grep -q "$1"; then
-      found_mapper=$(basename "$mapper")
-      found_loop_device=$(echo "$output" | grep 'loop:' | awk '{print $2}')
-      echo "FOUND!"
-      echo "$output"
+      # We found a matching device. Perform variable assignments.
+      # Given the path /dev/mapper/1.encryptedvolume, extracts the basename.
+      found_block_mapper_name=$(basename "$mapper")
+      # The corresponding loop device, for example: /dev/loop1
+      found_loop_device=$(echo "$output" | grep 'device:' | awk '{print $2}')
       break
     fi
   done
 
-  if [ -z "$found_mapper" ]; then
+  if [ -z "$found_block_mapper_name" ]; then
     echo "No mapper was found for $1"
     exit 1
   fi
 
-  # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
-  block_numerical_identifier=$(echo "$found_mapper" | awk -F'.' '{print $1}')
-
-  # Unmount the block, and delete the mount point
-  umount "/mnt/$block_numerical_identifier"
-  rm -r "/mnt/${block_numerical_identifier:?}"
-
-  cryptsetup close "$found_mapper"
-  losetup -d "$found_loop_device"
+  # call: unmount_close_and_deloop 1.encryptedvolume /dev/loop1
+  unmount_close_and_deloop "$found_block_mapper_name" "$found_loop_device"
 }
 
-close_all_block_devices() {
-  for mapper in /dev/mapper/*; do
+##
+# Utility function to unmount, close, and deloop a block device.
+#
+# Args:
+# $1: The name of the block mapper, ie. 1.encryptedvolume
+# $2: The loop device location, ie. /dev/loop1
+#
+unmount_close_and_deloop() {
+    # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
+    found_block_mapper_number=$(echo "$1" | awk -F'.' '{print $1}')
 
+    # Unmount the block, and delete the mount point
+    umount "/mnt/$found_block_mapper_number"
+    rm -r "/mnt/${found_block_mapper_number:?}"
+
+    cryptsetup close "$1"
+    losetup -d "$2"
+}
+
+##
+# Closes all open block devices managed by `encrypted_files`. This is assumed to be any available device mappings
+# that are unlocked via FIDO2.
+#
+# Begins by using `dmsetup` to list all device mappings managed by cryptsetup. This may list out other devices as well,
+# such as the NVME disk itself; and potentially the swapfile too. These don't need to be ejected, so we further filter
+# on whether the devices have keyslots that are unlocked via FIDO2 devices only.
+#
+close_all_block_devices() {
+  for dev in $(dmsetup ls --target crypt | awk '{print $1}'); do
+    cryptsetup_status=$(crypsetup status "$dev")
+    loop_device=$(echo "$cryptsetup_status" | grep device | awk '{print $2}')
+    echo "$loop_device"
+
+    if cryptsetup luksDump "$loop_device" | grep -q "fido2" && cryptsetup status "$dev" | grep -q "is active"; then
+      echo "$dev is open and is unlocked via FIDO2"
+
+      unmount_close_and_deloop "$dev" "$loop_device"
+    fi
   done
 }
 
@@ -93,6 +127,7 @@ case "$1" in
     echo "Closing all block devices"
     close_all_block_devices
     exit 0
+    ;;
   *)
     echo "Please provide either 'open' or 'close to 'encrypted_block_devices." &>2
     exit 1
