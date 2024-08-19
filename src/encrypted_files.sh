@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/usr/bin/env bash
 # Provides functionality to expedite the opening and closing of LUKS2 encrypted files using `losetup`,
 # `cryptsetup`, and `mount`. Usage to open an encrypted file:
 #
