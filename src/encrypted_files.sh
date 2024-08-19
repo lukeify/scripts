@@ -65,7 +65,7 @@ close_block_device() {
   done
 
   if [ -z "$found_block_mapper_name" ]; then
-    echo "No mapper was found for $1"
+    echo "No mapper was found for $1" >&2
     exit 1
   fi
 
@@ -127,7 +127,7 @@ case "$1" in
     exit 0
     ;;
   *)
-    echo "Please provide either 'open' or 'close to 'encrypted_block_devices." &>2
+    echo "Please provide either 'open' or 'close to 'encrypted_block_devices." >&2
     exit 1
     ;;
 esac
@@ -147,7 +147,7 @@ for block_device_path in "${block_device_paths[@]}"; do
 #  elif [ -d "$block-device_path" ]; then
 #    # Perform dir operation
   else
-    echo "Argument provided was not a file." &>2
+    echo "$block_device_path: Argument provided was not a file." >&2
     exit 1
   fi
 done
