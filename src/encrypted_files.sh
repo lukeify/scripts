@@ -102,9 +102,8 @@ unmount_close_and_deloop() {
 #
 close_all_block_devices() {
   for dev in $(dmsetup ls --target crypt | awk '{print $1}'); do
-    cryptsetup_status=$(crypsetup status "$dev")
+    cryptsetup_status=$(cryptsetup status "$dev")
     loop_device=$(echo "$cryptsetup_status" | grep device | awk '{print $2}')
-    echo "$loop_device"
 
     if cryptsetup luksDump "$loop_device" | grep -q "fido2" && cryptsetup status "$dev" | grep -q "is active"; then
       echo "$dev is open and is unlocked via FIDO2"
