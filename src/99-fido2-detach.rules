@@ -1,0 +1,8 @@
+# Yubico.com Yubikey 4/5 OTP+U2F+CCID details:
+#
+# idVendor: 0x1050 Yubico.com
+# idProduct: 0x0407 Yubikey 4/5 OTP+U2F+CCID
+#
+# Place this file in /etc/udev/rules.d
+#
+ACTION=="remove", SUBSYSTEM=="usb", ENV{ID_VENDOR_ID}="1050", ENV{ID_MODEL_ID}="0407", RUN+="/usr/local/bin/detach_on_fido2_eject"
