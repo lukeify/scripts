@@ -90,6 +90,9 @@ unmount_close_and_deloop() {
 
     cryptsetup close "$1"
     losetup -d "$2"
+
+    # Yes, this is hardcoded to assume my username and uid. That's okay, because this script isn't meant for you.
+    sudo -u luke DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
 }
 
 ##
