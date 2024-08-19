@@ -1,0 +1,10 @@
+# Yubico.com Yubikey 4/5 OTP+U2F+CCID details:
+#
+# idVendor: 0x1050 Yubico.com
+# idProduct: 0x0407 Yubikey 4/5 OTP+U2F+CCID
+#
+# Place this file in /etc/udev/rules.d
+# Note that we don't call the `encrypted_files` script directly but instead do so through a `systemd` service.
+# This is because `umount` isn't available when called by `udev`.
+
+ACTION=="remove", ENV{ID_VENDOR_ID}="1050", ENV{ID_MODEL_ID}="0407", RUN+="/usr/bin/systemctl start fido2_detach.service"
