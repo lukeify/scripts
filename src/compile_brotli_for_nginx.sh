@@ -28,9 +28,10 @@ make modules
 mv objs/*.so /usr/lib/nginx/modules
 
 # Introduce the `load_module` directives into `nginx.conf`. This also requires sudo.
-add_before_http="
+add_before="
 load_module modules/ngx_http_brotli_filter_module.so;
 load_module modules/ngx_http_brotli_static_module.so;
+
 "
 
 # Check if the modules are already present in the file
@@ -38,10 +39,10 @@ if ! grep -q 'ngx_http_brotli_filter_module.so' /etc/nginx/nginx.conf && \
   ! grep -q 'ngx_http_brotli_static_module.so' /etc/nginx/nginx.conf; then
   awk -i inplace '
   BEGIN {
-    add_before_http="'"$add_before_http"'"
+    add_before="'"$add_before"'"
   }
-  /^http {/{
-    print add_before_http
+  /^events {/{
+    print add_before
   }
   {
     print
