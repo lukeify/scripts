@@ -18,7 +18,7 @@ cmake --build . --config Release --target brotlienc
 # https://github.com/google/ngx_brotli?tab=readme-ov-file#dynamically-loaded
 cd "../../../../nginx-$nginx_version" || exit
 nginx_args=$(nginx -V 2>&1 | awk -F'configure arguments: ' '/configure arguments:/ {print $2}')
-./configure "$nginx_args" --with-compat --add-dynamic-module=../nginx_brotli
+./configure "$nginx_args" --with-compat --add-dynamic-module=../ngx_brotli
 
 # Move the compiled object files. This must be run as sudo.
 mv objs/*.so /usr/lib/nginx/modules
@@ -49,6 +49,7 @@ else
 fi
 
 # Cleanup
+cd "../" || exit
 rm "nginx-$nginx_version.tar.gz"
 rm -r "nginx-$nginx_version"
 rm -r ngx_brotli
