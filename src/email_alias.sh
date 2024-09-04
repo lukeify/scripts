@@ -16,6 +16,8 @@
 # Expected utilities:
 # jq: Used to parse JSON responses from SimpleLogin.
 #
+set -e
+
 api_fqdn="https://app.simplelogin.io/api"
 auth_header="Authentication: $SIMPLE_LOGIN_API_TOKEN"
 secure_chars=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 16; echo)
