@@ -4,8 +4,6 @@
 # Uses /dev/urandom to generate a cryptographically random string that is appended to a provided email prefix. Once
 # generated, an alias is created using SimpleLogin. Once complete, the output is copied to the clipboard.
 #
-# https://security.stackexchange.com/a/183951
-#
 # Arguments:
 # $1 The prefix that should be applied to the randomly-generated string of characters. This is provided by the user.
 #
@@ -20,6 +18,14 @@ set -e
 
 api_fqdn="https://app.simplelogin.io/api"
 auth_header="Authentication: $SIMPLE_LOGIN_API_TOKEN"
+
+if [[ -z "$1" || -z "$SIMPLE_LOGIN_SUFFIX" || -z "$SIMPLE_LOGIN_API_TOKEN" ]]; then
+  echo "Error: Missing required prefix, SIMPLE_LOGIN_SUFFIX, or SIMPLE_LOGIN_API_TOKEN." >&2
+  exit 1
+fi
+
+# Chosen based on the discussion from https://security.stackexchange.com/a/183951
+# This appears to generate cryptographically random characters.
 secure_chars=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 16; echo)
 
 # Get the Mailbox ID that the alias should be added to.
