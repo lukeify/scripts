@@ -22,6 +22,18 @@ if [[ -z "$1" || -z "$SIMPLE_LOGIN_SUFFIX" || -z "$SIMPLE_LOGIN_API_TOKEN" ]]; t
   exit 1
 fi
 
+# Before creating a new email alias, check if one already exists for the given prefix.
+existing_email_address=$(curl -s "${api_fqdn}/v2/aliases?page_id=0" \
+  -H "$auth_header" \
+  -H "Content-Type: application/json" \
+  -d "{ \"query\": \"$1\" }" | jq -r ".aliases[] | select(.email | startswith(\"$1\")) | .email")
+
+if [ "$existing_email_address" ]; then
+  echo "$existing_email_address" | pbcopy
+  echo "Existing email alias \"$existing_email_address\" copied to your clipboard."
+  exit 0
+fi
+
 # Chosen based on the discussion from https://security.stackexchange.com/a/183951
 # This appears to generate cryptographically random characters.
 secure_chars=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 16; echo)
