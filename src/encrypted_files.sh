@@ -26,17 +26,22 @@ set -e
 # 1. The name of the file to be opened, i.e. `test.encrypted`.
 #
 open_block_device () {
-  loop_device=$(losetup -f --show "$1")
+  local encrypted_file_name="$1"
+
+  local loop_device
+  loop_device=$(losetup -f --show "$encrypted_file_name")
   # TODO: Check if the command succeeded first.
   #  if ! losetup -f $1 2>&2; then
   #    exit 1
   #  fi
 
+  local device_number
   # shellcheck disable=SC2001
   # sed is perfectly fine here
   device_number=$(echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/')
   cryptsetup open "$loop_device" "${device_number}.encryptedvolume"
   # TODO: Handle failure
+
   # Create the directory that the block device will be mounted to.
   mkdir /mnt/"${device_number}"
   mount /dev/mapper/"${device_number}".encryptedvolume /mnt/"${device_number}"
@@ -52,13 +57,17 @@ close_block_device() {
   # Given the file name of the encrypted LUKS block device, find the corresponding mapper by interrogating
   # `cryptsetup status` which will list out the backing file.
   for mapper in /dev/mapper/*; do
+    local output
     output=$(cryptsetup status "$(basename "$mapper")")
 
     if echo "$output" | grep -q "$1"; then
       # We found a matching device. Perform variable assignments.
       # Given the path /dev/mapper/1.encryptedvolume, extracts the basename.
+      local found_block_mapper_name
       found_block_mapper_name=$(basename "$mapper")
+
       # The corresponding loop device, for example: /dev/loop1
+      local found_loop_device
       found_loop_device=$(echo "$output" | grep 'device:' | awk '{print $2}')
       break
     fi
@@ -82,6 +91,7 @@ close_block_device() {
 #
 unmount_close_and_deloop() {
     # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
+    local found_block_mapper_number
     found_block_mapper_number=$(echo "$1" | awk -F'.' '{print $1}')
 
     # Unmount the block, and delete the mount point
@@ -105,7 +115,9 @@ unmount_close_and_deloop() {
 #
 close_all_block_devices() {
   for dev in $(dmsetup ls --target crypt | awk '{print $1}'); do
+    local cryptsetup_status
     cryptsetup_status=$(cryptsetup status "$dev")
+    local loop_device
     loop_device=$(echo "$cryptsetup_status" | grep device | awk '{print $2}')
 
     if cryptsetup isLuks "$loop_device" && cryptsetup luksDump "$loop_device" | grep -q "fido2" && cryptsetup status "$dev" | grep -q "is active"; then
