@@ -36,7 +36,7 @@ open_block_device () {
   # sed is perfectly fine here
   device_number=$(echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/')
   cryptsetup open "$loop_device" "${device_number}.encryptedvolume"
-# TODO: Handle failure
+  # TODO: Handle failure
   # Create the directory that the block device will be mounted to.
   mkdir /mnt/"${device_number}"
   mount /dev/mapper/"${device_number}".encryptedvolume /mnt/"${device_number}"
@@ -146,9 +146,9 @@ for block_device_path in "${block_device_paths[@]}"; do
   if [ -f "$block_device_path" ]; then
     # Perform file operation
     $call "$block_device_path"
-# TODO: Handle directories
-#  elif [ -d "$block-device_path" ]; then
-#    # Perform dir operation
+    # TODO: Handle directories
+    #  elif [ -d "$block-device_path" ]; then
+    #    # Perform dir operation
   else
     echo "$block_device_path: Argument provided was not a file." >&2
     exit 1
