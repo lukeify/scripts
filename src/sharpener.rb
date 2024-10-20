@@ -17,6 +17,8 @@ def find_dupes(target)
   duplicates = {}
 
   Find.find(target) do |path|
+    Find.prune if File.basename(path).start_with?(".")
+
     if FileTest.file?(path)
       dgst = OpenSSL::Digest::SHA256.file(path).hexdigest
 
