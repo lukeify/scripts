@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
-for file in src/*.sh; do
-  cp "$file" "${file%.sh}"
+for file in src/*.{sh,rb}; do
+  [ -e "$file" ] || continue
+  cp "$file" "${file%.*}"
 done
