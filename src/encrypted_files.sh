@@ -112,7 +112,7 @@ create_block_device() {
       echo "Found FIDO2 TOKEN: $device"
 
       if [ "$index" -eq 0 ]; then
-
+        echo "Enrolling key 1"
 
         systemd-cryptenroll "$loop_device" \
           --wipe-slot=all \
@@ -120,6 +120,7 @@ create_block_device() {
           --fido2-with-user-presence=yes
 
       elif [ "$index" -eq 1 ]; then
+        echo "Enrolling key 2"
 
         systemd-cryptenroll "$loop_device" \
           --fido2-device="$device" \
