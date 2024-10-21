@@ -96,21 +96,44 @@ create_block_device() {
   # FIDO2 keyslots next.
   echo -n "0" | cryptsetup luksFormat "$loop_device" -
 
-  # Enroll the first key.
-  prompt_for_fido_action "first" "insert"
-  systemd-cryptenroll "$loop_device" \
-    --wipe-slot=all \
-    --fido2-device=auto \
-    --fido2-with-user-presence=yes
+  read -rp "Enter two FIDO2 keys, and confirm (y) when complete: " confirm
+  if [[ ! "$confirm" =~ ^[y]$ ]]; then
+      echo "Other input detected. Cancelling."
+      exit 1
+  fi
 
-  # Enroll the second key.
-  prompt_for_fido_action "second" "insert"
-  systemd-cryptenroll "$loop_device" \
-    --fido2-device=auto \
-    --fido2-with-user-presence=yes \
-    --fido2-credential-algorithm=eddsa \
-    --unlock-fido2-device=auto
-  prompt_for_fido_action "second" "remove"
+  # Loop over each FIDO2 token in /dev/hidraw and enroll up to 2 of them.
+  local index=0
+  for device in /dev/hidraw*; do
+    local hidraw_info
+    hidraw_info=$(udevadm info "$device")
+
+    if echo "$hidraw_info" | grep -q "ID_FIDO_TOKEN=1"; then
+      echo "Found FIDO2 TOKEN: $device"
+
+      if [ "$index" -eq 0 ]; then
+
+
+        systemd-cryptenroll "$loop_device" \
+          --wipe-slot=all \
+          --fido2-device="$device" \
+          --fido2-with-user-presence=yes
+
+      elif [ "$index" -eq 1 ]; then
+
+        systemd-cryptenroll "$loop_device" \
+          --fido2-device="$device" \
+          --fido2-with-user-presence=yes \
+          --fido2-credential-algorithm=eddsa \
+          --unlock-fido2-device=auto
+      else
+        # Quit once we have found our second FIDO2 token.
+        break;
+      fi
+
+      ((index++))
+    fi
+  done
 
   # TODO: Print confirmation of isLuks & luksDump.
 }
