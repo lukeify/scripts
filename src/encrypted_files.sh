@@ -52,6 +52,18 @@ get_loop_device_number() {
   echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/'
 }
 
+prompt_for_fido_action() {
+  local key_ordinal="$1" # first or second
+  local key_action="$2" # insert or remove
+
+  read -rp "Please $key_action your $key_ordinal FIDO2 key, and confirm (y) when complete: " confirm
+  if [[ ! "$confirm" =~ ^[y]$ ]]; then
+      echo "Other input detected. Cancelling."
+      exit 1
+  fi
+
+}
+
 # MAIN FUNCTIONS
 
 ##
@@ -80,25 +92,26 @@ create_block_device() {
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
-  # Initialize a LUKS partition with an empty password using key-file piped from /dev/null. We replace this empty
-  # password with FIDO2 keyslots next.
-  cryptsetup luksFormat --key-file=/dev/null "$loop_device"
+  # Initialize a LUKS partition with a near-empty password using input piped from echo. We replace this password with
+  # FIDO2 keyslots next.
+  echo -n "0" | cryptsetup luksFormat "$loop_device" -
 
   # Enroll the first key.
-  # TODO: Prompt user to insert first FIDO2 key.
+  prompt_for_fido_action "first" "insert"
   systemd-cryptenroll "$loop_device" \
     --wipe-slot=all \
     --fido2-device=auto \
     --fido2-with-user-presence=yes \
     --fido2-with-user-verification=yes
-  # TODO: Prompt user to remove first FIDO2 key.
+  prompt_for_fido_action "first" "remove"
 
-  # TODO: Prompt user to insert second FIDO2 key.
+  # Enroll the second key.
+  prompt_for_fido_action "second" "insert"
   systemd-cryptenroll "$loop_device" \
     --fido2-device=auto \
     --fido2-with-user-presence=yes \
     --fido2-with-user-verification=yes
-  # TODO: Prompt user to remove second FIDO2 key.
+  prompt_for_fido_action "second" "remove"
 
   # TODO: Print confirmation of isLuks & luksDump.
 }
