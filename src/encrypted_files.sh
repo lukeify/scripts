@@ -101,16 +101,15 @@ create_block_device() {
   systemd-cryptenroll "$loop_device" \
     --wipe-slot=all \
     --fido2-device=auto \
-    --fido2-with-user-presence=yes \
-    --fido2-with-user-verification=yes
-  prompt_for_fido_action "first" "remove"
+    --fido2-with-user-presence=yes
 
   # Enroll the second key.
   prompt_for_fido_action "second" "insert"
   systemd-cryptenroll "$loop_device" \
     --fido2-device=auto \
     --fido2-with-user-presence=yes \
-    --fido2-with-user-verification=yes
+    --fido2-credential-algorithm=eddsa \
+    --unlock-fido2-device=auto
   prompt_for_fido_action "second" "remove"
 
   # TODO: Print confirmation of isLuks & luksDump.
