@@ -1,18 +1,107 @@
 #!/usr/bin/env bash
-# Provides functionality to expedite the opening and closing of LUKS2 encrypted files using `losetup`,
-# `cryptsetup`, and `mount`. Usage to open an encrypted file:
+
+##
+# Provides functionality to expedite the creating, opening, and closing of LUKS2 encrypted files using `losetup`,
+# `cryptsetup`, and `mount`. Usage to create an encrypted file:
+#
+# $ encrypted_file create <size>
+#
+# Usage to open an encrypted file:
 #
 # $ encrypted_file open /path/to/file
 #
-# The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk.
-# Usage to close a mounted block device:
+# The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk. Usage to
+# close a mounted block device:
 #
 # $ encrypted_file close /path/to/mount
-#
-#
 
 # Early exit if a command fails.
 set -e
+
+# HELPERS
+
+##
+# Uses `losetup` to automate the opening of a loop device, returning the loop device's path on disk when complete.
+#
+# Args:
+# $1 The encrypted file name that a loop device should be created for.
+#
+setup_loop_device() {
+  local encrypted_file_name="$1"
+
+  local loop_device
+  loop_device=$(losetup -f --show "$encrypted_file_name")
+  # TODO: Check if the command succeeded first.
+  #  if ! losetup -f $1 2>&2; then
+  #    exit 1
+  #  fi
+  echo "$loop_device"
+}
+
+##
+# Given a loop_device address, such as `/dev/loop1`, returns the suffixing number of that path, so for that address
+# example, the returned value will be "1".
+#
+# Args:
+# $1 The loop device address to return the number for.
+#
+get_loop_device_number() {
+  local loop_device="$1"
+  # sed is perfectly fine here
+  # shellcheck disable=SC2001
+  echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/'
+}
+
+# MAIN FUNCTIONS
+
+##
+# Creates a LUKS-encrypted block device. The name of the encrypted file that backs the block device will be the next
+# sequential number in the directory, i.e. if a `3.encrypted` file exists, then the next file name will be
+# `4.encrypted`.
+#
+# During the process, the user will be prompted to insert their two FIDO2 security keys which will be used to encrypt
+# and secure the LUKS volume.
+#
+# Args:
+# $1 The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
+#
+#
+create_block_device() {
+  local megabytes=$1
+
+  local i=1
+  while [[ -e "$i.encrypted" ]]; do ((i++)); done;
+  local encrypted_file_name="$i.encrypted"
+
+  dd if=/dev/zero of="$encrypted_file_name" bs=1M count="$megabytes"
+
+  local loop_device
+  loop_device=$(setup_loop_device "$encrypted_file_name")
+  local device_number
+  device_number=$(get_loop_device_number "$loop_device")
+
+  # Initialize a LUKS partition with an empty password using key-file piped from /dev/null. We replace this empty
+  # password with FIDO2 keyslots next.
+  cryptsetup luksFormat --key-file=/dev/null "$loop_device"
+
+  # Enroll the first key.
+  # TODO: Prompt user to insert first FIDO2 key.
+  systemd-cryptenroll "$loop_device" \
+    --wipe-slot=all \
+    --fido2-device=auto \
+    --fido2-with-user-presence=yes \
+    --fido2-with-user-verification=yes
+  # TODO: Prompt user to remove first FIDO2 key.
+
+  # TODO: Prompt user to insert second FIDO2 key.
+  systemd-cryptenroll "$loop_device" \
+    --fido2-device=auto \
+    --fido2-with-user-presence=yes \
+    --fido2-with-user-verification=yes
+  # TODO: Prompt user to remove second FIDO2 key.
+
+  # TODO: Print confirmation of isLuks & luksDump.
+}
 
 ##
 # Opens a block device. This is a three command process:
@@ -23,22 +112,16 @@ set -e
 # 3. Mount loop device using `mount`.
 #
 # Args:
-# 1. The name of the file to be opened, i.e. `test.encrypted`.
+# 1. The name of the file to be opened, i.e. `1.encrypted`.
 #
 open_block_device () {
   local encrypted_file_name="$1"
 
   local loop_device
-  loop_device=$(losetup -f --show "$encrypted_file_name")
-  # TODO: Check if the command succeeded first.
-  #  if ! losetup -f $1 2>&2; then
-  #    exit 1
-  #  fi
-
+  loop_device=$(setup_loop_device "$encrypted_file_name")
   local device_number
-  # shellcheck disable=SC2001
-  # sed is perfectly fine here
-  device_number=$(echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/')
+  device_number=$(get_loop_device_number "$loop_device")
+
   cryptsetup open "$loop_device" "${device_number}.encryptedvolume"
   # TODO: Handle failure
 
@@ -51,16 +134,18 @@ open_block_device () {
 # Closes a block device given by the filename.
 #
 # Args:
-# 1. The name of the file to be closed, i.e. `test.encrypted`.
+# 1. The name of the file to be closed, i.e. `1.encrypted`.
 #
 close_block_device() {
+  local encrypted_file_name="$1"
+
   # Given the file name of the encrypted LUKS block device, find the corresponding mapper by interrogating
   # `cryptsetup status` which will list out the backing file.
   for mapper in /dev/mapper/*; do
     local output
     output=$(cryptsetup status "$(basename "$mapper")")
 
-    if echo "$output" | grep -q "$1"; then
+    if echo "$output" | grep -q "$encrypted_file_name"; then
       # We found a matching device. Perform variable assignments.
       # Given the path /dev/mapper/1.encryptedvolume, extracts the basename.
       local found_block_mapper_name
@@ -130,6 +215,10 @@ close_all_block_devices() {
 # Parse the first argument as either the string "open" or "close", and assign the function to be called to the
 # variable `$call`. If the argument provided is "close_all", call the corresponding method and finish.
 case "$1" in
+  create)
+    create_block_device "$2"
+    exit 0
+    ;;
   open)
     call=open_block_device
     ;;
@@ -142,7 +231,7 @@ case "$1" in
     exit 0
     ;;
   *)
-    echo "Please provide either 'open' or 'close to 'encrypted_block_devices." >&2
+    echo "Please provide either 'create', 'open', or 'close to 'encrypted_files." >&2
     exit 1
     ;;
 esac
