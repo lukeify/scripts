@@ -92,9 +92,11 @@ create_block_device() {
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
-  # Initialize a LUKS partition with a near-empty password using input piped from echo. We replace this password with
-  # FIDO2 keyslots next.
-  echo -n "0" | cryptsetup luksFormat "$loop_device" -
+  # Initialize the LUKS partition with a passphrase provided by writing /dev/zero to a file. We replace this password
+  # with FIDO2 keyslots. This approach minimizes user input. We set the key slot to 2 so that the tokens (and the
+  # corresponding key slots they consume) have aligned numbers, i.e. token 0 will correspond to key slot 0.
+  dd if=/dev/zero of=zero.key bs=1 count=8
+  cryptsetup luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
   read -rp "Enter two FIDO2 keys, and confirm (y) when complete: " confirm
   if [[ ! "$confirm" =~ ^[y]$ ]]; then
@@ -110,24 +112,14 @@ create_block_device() {
 
     if echo "$hidraw_info" | grep -q "ID_FIDO_TOKEN=1"; then
       echo "Found FIDO2 TOKEN: $device"
+      echo "Enrolling key $index"
 
-      if [ "$index" -eq 0 ]; then
-        echo "Enrolling key 1"
+      systemd-cryptenroll "$loop_device" \
+        --unlock-key-file=zero.key \
+        --fido2-device="$device" \
+        --fido2-with-user-presence=yes
 
-        systemd-cryptenroll "$loop_device" \
-          --wipe-slot=all \
-          --fido2-device="$device" \
-          --fido2-with-user-presence=yes
-
-      elif [ "$index" -eq 1 ]; then
-        echo "Enrolling key 2"
-
-        systemd-cryptenroll "$loop_device" \
-          --fido2-device="$device" \
-          --fido2-with-user-presence=yes \
-          --fido2-credential-algorithm=eddsa \
-          --unlock-fido2-device=auto
-      else
+      if [ "$index" -gt 1 ]; then
         # Quit once we have found our second FIDO2 token.
         break;
       fi
@@ -135,6 +127,11 @@ create_block_device() {
       ((index++))
     fi
   done
+
+  # Wipe keyslot 0 associated with our empty passphrase.
+  echo "Enrollment complete"
+  cryptsetup luksRemoveKey "$loop_device" --key-file=zero.key
+  rm zero.key
 
   # TODO: Print confirmation of isLuks & luksDump.
 }
