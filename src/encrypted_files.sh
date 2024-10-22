@@ -108,7 +108,8 @@ create_block_device() {
 
   # Loop over each FIDO2 token in /dev/hidraw and enroll up to 2 of them.
   local index=0
-  for device in /dev/hidraw*; do
+  local devices=(/dev/hidraw*(N))
+  for device in "${devices[@]}"; do
     local hidraw_info
     hidraw_info=$(udevadm info "$device")
 
@@ -131,11 +132,12 @@ create_block_device() {
   done
 
   # Wipe keyslot 0 associated with our empty passphrase.
-  echo "Enrollment complete"
+  echo "Enrollment complete. Removing empty passphrase & associated keyfile."
   cryptsetup luksRemoveKey "$loop_device" --key-file=zero.key
   rm zero.key
 
-  # TODO: Print confirmation of isLuks & luksDump.
+  echo "Printing a luksDump of the partition:"
+  cryptsetup luksDump "$loop_device"
 }
 
 ##
