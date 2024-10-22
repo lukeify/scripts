@@ -96,6 +96,8 @@ create_block_device() {
   # with FIDO2 keyslots. This approach minimizes user input. We set the key slot to 2 so that the tokens (and the
   # corresponding key slots they consume) have aligned numbers, i.e. token 0 will correspond to key slot 0.
   dd if=/dev/zero of=zero.key bs=1 count=8
+  # cryptsetup warns of this key being too permissive if left as 644.
+  chmod 400 zero.key
   cryptsetup luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
   read -rp "Enter two FIDO2 keys, and confirm (y) when complete: " confirm
