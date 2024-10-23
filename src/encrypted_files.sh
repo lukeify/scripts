@@ -73,7 +73,7 @@ create_block_device() {
   while [[ -e "$i.encrypted" ]]; do ((i++)); done;
   local encrypted_file_name="$i.encrypted"
 
-  dd if=/dev/zero of="$encrypted_file_name" bs=1M count="$megabytes"
+  dd if=/dev/zero of="$encrypted_file_name" bs=1M count="$megabytes" 1> /dev/null
 
   local loop_device
   loop_device=$(setup_loop_device "$encrypted_file_name")
@@ -83,7 +83,7 @@ create_block_device() {
   # Initialize the LUKS partition with a passphrase provided by writing /dev/zero to a file. We replace this password
   # with FIDO2 keyslots. This approach minimizes user input. We set the key slot to 2 so that the tokens (and the
   # corresponding key slots they consume) have aligned numbers, i.e. token 0 will correspond to key slot 0.
-  dd if=/dev/zero of=zero.key bs=1 count=8
+  dd if=/dev/zero of=zero.key bs=1 count=8 1> /dev/null
   # cryptsetup warns of this key being too permissive if left as 644.
   chmod 400 zero.key
   cryptsetup luksFormat "$loop_device" --key-file=zero.key --key-slot=2
