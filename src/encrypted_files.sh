@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env zsh
 
 ##
 # Provides functionality to expedite the creating, opening, and closing of LUKS2 encrypted files using `losetup`,
@@ -52,18 +52,6 @@ get_loop_device_number() {
   echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/'
 }
 
-prompt_for_fido_action() {
-  local key_ordinal="$1" # first or second
-  local key_action="$2" # insert or remove
-
-  read -rp "Please $key_action your $key_ordinal FIDO2 key, and confirm (y) when complete: " confirm
-  if [[ ! "$confirm" =~ ^[y]$ ]]; then
-      echo "Other input detected. Cancelling."
-      exit 1
-  fi
-
-}
-
 # MAIN FUNCTIONS
 
 ##
@@ -100,7 +88,9 @@ create_block_device() {
   chmod 400 zero.key
   cryptsetup luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
-  read -rp "Enter two FIDO2 keys, and confirm (y) when complete: " confirm
+  # zsh-specific way of confirming input from the user. https://unix.stackexchange.com/a/198374
+  printf >&2 "%s " "Insert two FIDO2 keys, and confirm (y) when complete: "
+  read -r confirm
   if [[ ! "$confirm" =~ ^[y]$ ]]; then
       echo "Other input detected. Cancelling."
       exit 1
@@ -119,7 +109,7 @@ create_block_device() {
 
       systemd-cryptenroll "$loop_device" \
         --unlock-key-file=zero.key \
-        --fido2-device="$device" \
+        --fido2-device="$device"1 \
         --fido2-with-user-presence=yes
 
       if [ "$index" -gt 1 ]; then
