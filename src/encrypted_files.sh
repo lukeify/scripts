@@ -98,8 +98,7 @@ create_block_device() {
 
   # Loop over each FIDO2 token in /dev/hidraw and enroll up to 2 of them.
   local index=0
-  local devices=(/dev/hidraw*(N))
-  for device in "${devices[@]}"; do
+  for device in /dev/hidraw*; do
     local hidraw_info
     hidraw_info=$(udevadm info "$device")
 
