@@ -84,7 +84,7 @@ mount_device() {
   local mount_point="$1"
   local device_number="$2"
 
-  mdkir "$mount_point/$device_number"
+  mkdir "$mount_point/$device_number"
   mount "/dev/mapper/$device_number.unencrypted" "$mount_point/$device_number"
 }
 
