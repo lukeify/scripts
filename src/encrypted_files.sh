@@ -15,9 +15,6 @@
 #
 # $ encrypted_file close /path/to/mount
 
-# Early exit if a command fails.
-set -e
-
 # HELPERS
 
 ##
@@ -61,6 +58,8 @@ get_loop_device_number() {
 #
 # During the process, the user will be prompted to insert their two FIDO2 security keys which will be used to encrypt
 # and secure the LUKS volume.
+#
+# TODO: Figure out why the for loop fails with exit code 1 when `set -e` is set.
 #
 # Args:
 # $1 The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
