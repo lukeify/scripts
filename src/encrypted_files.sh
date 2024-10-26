@@ -111,7 +111,7 @@ create_block_device() {
 
       systemd-cryptenroll "$loop_device" \
         --unlock-key-file=zero.key \
-        --fido2-device="$device"1 \
+        --fido2-device="$device" \
         --fido2-with-user-presence=yes
 
       if [ "$index" -gt 1 ]; then
