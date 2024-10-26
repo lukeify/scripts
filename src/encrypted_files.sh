@@ -9,14 +9,14 @@
 #
 # Usage to open an encrypted file:
 #
-# $ krypton open <path_to_file>
+# $ krypton open <path_to_file> <path_to_other_file>
 #
 # The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk.
 # Usage to close a mounted block device:
 #
-# $ krypton close <path_to_mount>
+# $ krypton close <path_to_file> <path_to_other_file>
 #
-# Pass the `-a` flag to close all devices.
+# Pass the `-a` flag with no file arguments to close all devices.
 
 # Don't print out pre-assigned local variables
 setopt TYPESET_SILENT
