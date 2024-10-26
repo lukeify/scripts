@@ -39,6 +39,18 @@ setup_loop_device() {
 }
 
 ##
+# Uses `losetup` to auomate the closing of a loop device.
+#
+# Args:
+# $1 The encrypted file name that a loop device exists for that should be closed.
+#
+close_loop_device() {
+  local encrypted_file_name="$1"
+
+  local loop_device
+}
+
+##
 # Given a loop_device address, such as `/dev/loop1`, returns the suffixing number of that path, so for that address
 # example, the returned value will be "1".
 #
@@ -93,7 +105,7 @@ create_block_device() {
   while [[ -e "$i.encrypted" ]]; do ((i++)); done;
   local encrypted_file_name="$i.encrypted"
 
-  dd if=/dev/zero of="$encrypted_file_name" bs=1M count="$megabytes" status=none
+  dd if=/dev/zero of="$mount_point/$encrypted_file_name" bs=1M count="$megabytes" status=none
 
   local loop_device
   loop_device=$(setup_loop_device "$encrypted_file_name")
@@ -109,29 +121,32 @@ create_block_device() {
   # Use -q flag to enable batch mode to disable confirmation of data overwriting.
   cryptsetup -q luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
-  confirm_with_message_prompt "Insert two FIDO2 keys, and confirm (y) when complete"
-
-  # Loop over each FIDO2 token in /dev/hidraw and enroll up to 2 of them.
-  local index=0
-  for device in /dev/hidraw*; do
-    local hidraw_info
-    hidraw_info=$(udevadm info "$device")
-
-    if printf "%s" "$hidraw_info" | grep -q "ID_FIDO_TOKEN=1"; then
-      echo "Found FIDO2 token $device, enrolling as key $index"
-
-      systemd-cryptenroll "$loop_device" \
-        --unlock-key-file=zero.key \
-        --fido2-device="$device" \
-        --fido2-with-user-presence=yes
-
-      if [ "$index" -gt 1 ]; then
-        # Quit once we have found our second FIDO2 token.
-        break;
-      fi
-
-      ((index++))
+  local i_fido_loop=0
+  until [ "$i_fido_loop" -gt 1 ]; do
+    if [ "$i_fido_loop" -eq 0 ]; then
+      confirm_with_message_prompt "Insert the first FIDO2 key, and confirm (y) when complete"
+    else
+      confirm_with_message_prompt "Insert the second FIDO2 key, and confirm (y) when complete"
     fi
+
+    # Loop over each FIDO2 token in /dev/hidraw, stopping when a FIDO2 token is found.
+    for device in /dev/hidraw*; do
+      local hidraw_info
+      hidraw_info=$(udevadm info "$device")
+
+      if printf "%s" "$hidraw_info" | grep -q "ID_FIDO_TOKEN=1"; then
+        echo "Found FIDO2 token $device, enrolling as key $i_fido_loop"
+
+        systemd-cryptenroll "$loop_device" \
+          --unlock-key-file=zero.key \
+          --fido2-device="$device" \
+          --fido2-with-user-presence=yes
+
+        break
+      fi
+    done
+
+    ((i_fido_loop++))
   done
 
   # Wipe keyslot 0 associated with our empty passphrase.
