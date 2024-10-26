@@ -129,7 +129,7 @@ create_block_device() {
   rm zero.key
 
   # Open partition, and initialise an EXT4 filesystem
-  cryptsetup open "$loop_device" "$device_number.unencrypted"
+  cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
   mkfs.ext4 "/dev/mapper/$device_number.unencrypted"
 
   # Mount to disk & chown
