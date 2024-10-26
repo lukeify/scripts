@@ -89,7 +89,8 @@ create_block_device() {
   dd if=/dev/zero of=zero.key bs=1 count=8 status=none
   # cryptsetup warns of this key being too permissive if left as 644.
   chmod 400 zero.key
-  cryptsetup luksFormat "$loop_device" --key-file=zero.key --key-slot=2
+  # Use -q flag to enable batch mode to disable confirmation of data overwriting.
+  cryptsetup -q luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
   # zsh-specific way of confirming input from the user. https://unix.stackexchange.com/a/198374
   printf >&2 "%s " "Insert two FIDO2 keys, and confirm (y) when complete: "
