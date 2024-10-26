@@ -52,6 +52,23 @@ get_loop_device_number() {
   echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/'
 }
 
+##
+# Request confirmation from the user via the `y` character.
+# zsh-specific way of confirming input from the user. https://unix.stackexchange.com/a/198374
+#
+# Args
+# $1: The message to be displayed to the user prior to being prompted.
+#
+confirm_with_message_prompt() {
+  local message_prompt="$1"
+  printf >&2 "%s " "$message_prompt: "
+  read -r confirm
+  if [[ ! "$confirm" =~ ^[y]$ ]]; then
+      echo "Other input detected. Cancelling."
+      exit 1
+  fi
+}
+
 # MAIN FUNCTIONS
 
 ##
@@ -92,13 +109,7 @@ create_block_device() {
   # Use -q flag to enable batch mode to disable confirmation of data overwriting.
   cryptsetup -q luksFormat "$loop_device" --key-file=zero.key --key-slot=2
 
-  # zsh-specific way of confirming input from the user. https://unix.stackexchange.com/a/198374
-  printf >&2 "%s " "Insert two FIDO2 keys, and confirm (y) when complete: "
-  read -r confirm
-  if [[ ! "$confirm" =~ ^[y]$ ]]; then
-      echo "Other input detected. Cancelling."
-      exit 1
-  fi
+  confirm_with_message_prompt "Insert two FIDO2 keys, and confirm (y) when complete"
 
   # Loop over each FIDO2 token in /dev/hidraw and enroll up to 2 of them.
   local index=0
@@ -131,6 +142,8 @@ create_block_device() {
   # Open partition, and initialise an EXT4 filesystem
   cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
   mkfs.ext4 "/dev/mapper/$device_number.unencrypted"
+
+  confirm_with_message_prompt "Confirm (y) when the mount point is available"
 
   # Mount to disk & chown
   mkdir "$mount_point/$device_number"
