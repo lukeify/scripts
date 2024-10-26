@@ -16,7 +16,7 @@
 # $ encrypted_file close /path/to/mount
 
 # Don't print out pre-assigned local variables
-setopt TYPSET_SILENT
+setopt TYPESET_SILENT
 
 # HELPERS
 
