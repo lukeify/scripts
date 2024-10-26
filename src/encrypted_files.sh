@@ -65,12 +65,12 @@ get_loop_device_number() {
 # TODO: Figure out why the for loop fails with exit code 1 when `set -e` is set.
 #
 # Args:
-# $1 The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
-#
-# TODO: Make this not require permissions once the device is mounted to add/remove/change content
+# $1: The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
+# $2: The mount point for the created block file on disk.
 #
 create_block_device() {
   local megabytes=$1
+  local mount_point=$2
 
   local i=1
   while [[ -e "$i.encrypted" ]]; do ((i++)); done;
@@ -128,8 +128,14 @@ create_block_device() {
   cryptsetup luksRemoveKey "$loop_device" --key-file=zero.key
   rm zero.key
 
-  echo "Printing a luksDump of the partition:"
-  cryptsetup luksDump "$loop_device"
+  # Open partition, and initialise an EXT4 filesystem
+  cryptsetup open "$loop_device" "$device_number.unencrypted"
+  mkfs.ext4 "/dev/mapper/$device_number.unencrypted"
+
+  # Mount to disk & chown
+  mkdir "$mount_point/$device_number"
+  mount "/dev/mapper/$device_number.unencrypted" "$mount_point/$device_number"
+  chown user:user "$mount_point/$device_number"
 }
 
 ##
@@ -141,7 +147,7 @@ create_block_device() {
 # 3. Mount loop device using `mount`.
 #
 # Args:
-# 1. The name of the file to be opened, i.e. `1.encrypted`.
+# $1: The name of the file to be opened, i.e. `1.encrypted`.
 #
 open_block_device () {
   local encrypted_file_name="$1"
@@ -163,7 +169,7 @@ open_block_device () {
 # Closes a block device given by the filename.
 #
 # Args:
-# 1. The name of the file to be closed, i.e. `1.encrypted`.
+# $1: The name of the file to be closed, i.e. `1.encrypted`.
 #
 close_block_device() {
   local encrypted_file_name="$1"
