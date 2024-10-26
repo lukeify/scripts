@@ -2,29 +2,34 @@
 
 ##
 # Provides functionality to expedite the creating, opening, and closing of LUKS2 encrypted files using `losetup`,
-# `cryptsetup`, and `mount`. Usage to create an encrypted file:
+# `cryptsetup`, and `mount`.
+# Usage to create an encrypted file:
 #
-# $ encrypted_file create <size>
+# $ krypton create <size> <mount_point>
 #
 # Usage to open an encrypted file:
 #
-# $ encrypted_file open /path/to/file
+# $ krypton open <path_to_file>
 #
-# The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk. Usage to
-# close a mounted block device:
+# The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk.
+# Usage to close a mounted block device:
 #
-# $ encrypted_file close /path/to/mount
+# $ krypton close <path_to_mount>
+#
+# Pass the `-a` flag to close all devices.
 
 # Don't print out pre-assigned local variables
 setopt TYPESET_SILENT
 
+# ----------------------------------------------------
 # HELPERS
+# ----------------------------------------------------
 
 ##
 # Uses `losetup` to automate the opening of a loop device, returning the loop device's path on disk when complete.
 #
 # Args:
-# $1 The encrypted file name that a loop device should be created for.
+# $1: The encrypted file name that a loop device should be created for.
 #
 setup_loop_device() {
   local encrypted_file_name="$1"
@@ -35,19 +40,20 @@ setup_loop_device() {
   #  if ! losetup -f $1 2>&2; then
   #    exit 1
   #  fi
-  echo "$loop_device"
 }
 
 ##
-# Uses `losetup` to auomate the closing of a loop device.
+# Uses `losetup` to automate the closing of a loop device.
 #
 # Args:
-# $1 The encrypted file name that a loop device exists for that should be closed.
+# $1: The encrypted file name that a loop device exists for that should be closed.
 #
 close_loop_device() {
   local encrypted_file_name="$1"
 
-  local loop_device
+  local loop_device=get
+
+  losetup -d "$loop_device"
 }
 
 ##
@@ -55,13 +61,62 @@ close_loop_device() {
 # example, the returned value will be "1".
 #
 # Args:
-# $1 The loop device address to return the number for.
+# $1: The loop device address to return the number for.
 #
 get_loop_device_number() {
   local loop_device="$1"
   # sed is perfectly fine here
   # shellcheck disable=SC2001
   echo "$loop_device" | sed 's/[^0-9]*\([0-9]*\)$/\1/'
+}
+
+##
+#
+# Args:
+# $1:
+# $2:
+#
+mount_device() {
+  local mount_point="$1"
+  local device_number="$2"
+
+  mdkir "$mount_point/$device_number"
+  mount "/dev/mapper/$device_number.unencrypted" "$mount_point/$device_number"
+}
+
+##
+#
+# Args:
+# $1:
+# $2:
+#
+unmount_device() {
+  local mount_point="$1"
+  local device_number="$2"
+
+  unmount ""
+}
+
+##
+# Utility function to unmount, close, and deloop a block device.
+#
+# Args:
+# $1: The name of the block mapper, ie. 1.encryptedvolume
+# $2: The loop device location, ie. /dev/loop1
+#
+unmount_close_and_deloop() {
+    # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
+    local found_block_mapper_number
+    found_block_mapper_number=$(echo "$1" | awk -F'.' '{print $1}')
+
+    # Unmount the block, and delete the mount point
+    umount "/mnt/$found_block_mapper_number"
+    rm -r "/mnt/${found_block_mapper_number:?}"
+
+    cryptsetup close "$1"
+    losetup -d "$2"
+
+    sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
 }
 
 ##
@@ -81,7 +136,9 @@ confirm_with_message_prompt() {
   fi
 }
 
+# ----------------------------------------------------
 # MAIN FUNCTIONS
+# ----------------------------------------------------
 
 ##
 # Creates a LUKS-encrypted block device. The name of the encrypted file that backs the block device will be the next
@@ -154,22 +211,21 @@ create_block_device() {
   cryptsetup luksRemoveKey "$loop_device" --key-file=zero.key
   rm zero.key
 
-  # Open partition, and initialise an EXT4 filesystem
+  # Open partition, and initialise an EXT4 filesystem.
   cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
   mkfs.ext4 "/dev/mapper/$device_number.unencrypted"
 
   confirm_with_message_prompt "Confirm (y) when the mount point is available"
 
-  # Mount to disk & chown
-  mkdir "$mount_point/$device_number"
-  mount "/dev/mapper/$device_number.unencrypted" "$mount_point/$device_number"
+  mount_device "$mount_point" "$device_number"
+  # change ownership of the mounted partition to ensure the user can write to it.
   chown user:user "$mount_point/$device_number"
 }
 
 ##
 # Opens a block device. This is a three command process:
 #
-# 1. Use `losetup` to
+# 1. Use `losetup` to setup a loop device from a given backing file.
 # 2. `cryptsetup-open` to open the loop device, unlocking using FIDO2.
 #    https://man7.org/linux/man-pages/man8/cryptsetup-open.8.html
 # 3. Mount loop device using `mount`.
@@ -185,12 +241,10 @@ open_block_device () {
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
-  cryptsetup open "$loop_device" "${device_number}.encryptedvolume"
+  cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
   # TODO: Handle failure
 
-  # Create the directory that the block device will be mounted to.
-  mkdir /mnt/"${device_number}"
-  mount /dev/mapper/"${device_number}".encryptedvolume /mnt/"${device_number}"
+  mount_device "$PWD" "$device_number"
 }
 
 ##
@@ -231,29 +285,6 @@ close_block_device() {
 }
 
 ##
-# Utility function to unmount, close, and deloop a block device.
-#
-# Args:
-# $1: The name of the block mapper, ie. 1.encryptedvolume
-# $2: The loop device location, ie. /dev/loop1
-#
-unmount_close_and_deloop() {
-    # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
-    local found_block_mapper_number
-    found_block_mapper_number=$(echo "$1" | awk -F'.' '{print $1}')
-
-    # Unmount the block, and delete the mount point
-    umount "/mnt/$found_block_mapper_number"
-    rm -r "/mnt/${found_block_mapper_number:?}"
-
-    cryptsetup close "$1"
-    losetup -d "$2"
-
-    # Yes, this is hardcoded to assume my username and uid. That's okay, because this script isn't meant for you.
-    sudo -u luke DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
-}
-
-##
 # Closes all open block devices managed by `encrypted_files`. This is assumed to be any available device mappings
 # that are unlocked via FIDO2.
 #
@@ -275,6 +306,10 @@ close_all_block_devices() {
   done
 }
 
+# ----------------------------------------------------
+# ENTRYPOINT
+# ----------------------------------------------------
+
 # Parse the first argument as either the string "open" or "close", and assign the function to be called to the
 # variable `$call`. If the argument provided is "close_all", call the corresponding method and finish.
 case "$1" in
@@ -289,6 +324,7 @@ case "$1" in
     call=close_block_device
     ;;
   close_all)
+    # TODO: This was changed to have an -a flag on close instead.
     echo "Closing all block devices"
     close_all_block_devices
     exit 0
