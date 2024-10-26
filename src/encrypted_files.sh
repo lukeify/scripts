@@ -20,6 +20,8 @@
 
 # Don't print out pre-assigned local variables
 setopt TYPESET_SILENT
+# Early exit when a script returns a non-zero exit code
+set -e
 
 # ----------------------------------------------------
 # HELPERS
@@ -150,8 +152,6 @@ confirm_with_message_prompt() {
 # During the process, the user will be prompted to insert their two FIDO2 security keys which will be used to encrypt
 # and secure the LUKS volume.
 #
-# TODO: Figure out why the for loop fails with exit code 1 when `set -e` is set.
-#
 # Args:
 # $1: The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
 # $2: The mount point for the created block file on disk.
@@ -205,7 +205,8 @@ create_block_device() {
       fi
     done
 
-    ((i_fido_loop++))
+    # https://stackoverflow.com/q/49072730
+    ((++i_fido_loop))
   done
 
   # Wipe keyslot 0 associated with our empty passphrase.
