@@ -251,7 +251,7 @@ close_all_block_devices() {
 # variable `$call`. If the argument provided is "close_all", call the corresponding method and finish.
 case "$1" in
   create)
-    create_block_device "$2"
+    create_block_device "$2" "$3"
     exit 0
     ;;
   open)
