@@ -159,13 +159,13 @@ create_block_device() {
   local mount_point=$2
 
   local i=1
-  while [[ -e "$i.encrypted" ]]; do ((i++)); done;
+  while [[ -e "$mount_point/$i.encrypted" ]]; do ((i++)); done;
   local encrypted_file_name="$i.encrypted"
 
   dd if=/dev/zero of="$mount_point/$encrypted_file_name" bs=1M count="$megabytes" status=none
 
   local loop_device
-  loop_device=$(setup_loop_device "$encrypted_file_name")
+  loop_device=$(setup_loop_device "$mount_point/$encrypted_file_name")
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
