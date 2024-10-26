@@ -244,8 +244,10 @@ open_block_device () {
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
-  cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
-  # TODO: Handle failure
+  if ! cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"; then
+    echo "cryptsetup failed to open $loop_device" >&2
+    exit 1
+  fi
 
   mount_device "$PWD" "$device_number"
 }
