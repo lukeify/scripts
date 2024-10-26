@@ -40,6 +40,8 @@ setup_loop_device() {
     echo "Failed to set up loop device for $encrypted_file_name" >&2
     exit 1
   fi
+
+  echo "$loop_device"
 }
 
 ##
