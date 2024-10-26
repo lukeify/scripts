@@ -15,6 +15,9 @@
 #
 # $ encrypted_file close /path/to/mount
 
+# Don't print out pre-assigned local variables
+setopt TYPSET_SILENT
+
 # HELPERS
 
 ##
@@ -64,10 +67,7 @@ get_loop_device_number() {
 # Args:
 # $1 The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
 #
-#
 # TODO: Make this not require permissions once the device is mounted to add/remove/change content
-# TODO: Figure out how to increment in bash without seemingly breaking for loops.
-# TODO: Silence printing of hidraw info to terminal
 #
 create_block_device() {
   local megabytes=$1
@@ -107,8 +107,7 @@ create_block_device() {
     hidraw_info=$(udevadm info "$device")
 
     if printf "%s" "$hidraw_info" | grep -q "ID_FIDO_TOKEN=1"; then
-      echo "Found FIDO2 TOKEN: $device"
-      echo "Enrolling key $index"
+      echo "Found FIDO2 token $device, enrolling as key $index"
 
       systemd-cryptenroll "$loop_device" \
         --unlock-key-file=zero.key \
