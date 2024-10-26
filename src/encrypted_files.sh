@@ -26,20 +26,20 @@ setopt TYPESET_SILENT
 # ----------------------------------------------------
 
 ##
-# Uses `losetup` to automate the opening of a loop device, returning the loop device's path on disk when complete.
+# Uses `losetup` to automate the opening of a loop device, returning the loop device's path on disk when complete. If
+# this command fails, halt further execution of the script.
 #
 # Args:
 # $1: The encrypted file name that a loop device should be created for.
 #
 setup_loop_device() {
   local encrypted_file_name="$1"
-
   local loop_device
-  loop_device=$(losetup -f --show "$encrypted_file_name")
-  # TODO: Check if the command succeeded first.
-  #  if ! losetup -f $1 2>&2; then
-  #    exit 1
-  #  fi
+
+  if ! loop_device=$(losetup -f --show "$encrypted_file_name"); then
+    echo "Failed to set up loop device for $encrypted_file_name" >&2
+    exit 1
+  fi
 }
 
 ##
