@@ -283,20 +283,18 @@ close_block_device() {
       # The path to the loop—of which we care about the mount point.
       local mount_point
       mount_point=$(echo "$output" | grep "loop:" | awk '{print $2}' | xargs dirname)
-
-      # The
       break
     fi
   done
 
-  if [ -n "$mount_point" ] && [ -n "$device_number" ]; then
+  if [ -z "$mount_point" ] || [ -z "$device_number" ]; then
     echo "No mapper was found for $1" >&2
     exit 1
   fi
 
   unmount_device "$mount_point" "$device_number"
 
-  cryptsetup close "$encrypted_file_name"
+  cryptsetup close "$(basename "$mapper")"
   losetup -d "$found_loop_device"
 
   sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
