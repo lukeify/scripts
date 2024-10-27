@@ -75,10 +75,11 @@ get_loop_device_number() {
 }
 
 ##
+# Makes a directory and them mounts the mapper to that directory.
 #
 # Args:
-# $1:
-# $2:
+# $1: The path on disk where the device should be mounted to.
+# $2: The numerical identifier of the device to be mounted.
 #
 mount_device() {
   local mount_point="$1"
@@ -89,23 +90,26 @@ mount_device() {
 }
 
 ##
+# Unmounts a mapper from a directory, then removes that directory.
 #
 # Args:
-# $1:
-# $2:
+# $1: The path on disk where the device is mounted.
+# $2: The numerical identifier of the device to unmount.
 #
 unmount_device() {
   local mount_point="$1"
   local device_number="$2"
 
-  unmount ""
+  unmount "$mount_point/$device_number"
+  # This parameter expansion solves SC2115.
+  rm -r "$mount_point/${device_number:?}"
 }
 
 ##
 # Utility function to unmount, close, and deloop a block device.
 #
 # Args:
-# $1: The name of the block mapper, ie. 1.encryptedvolume
+# $1: The name of the block mapper, ie. 1.encry
 # $2: The loop device location, ie. /dev/loop1
 #
 unmount_close_and_deloop() {
@@ -269,24 +273,33 @@ close_block_device() {
 
     if echo "$output" | grep -q "$encrypted_file_name"; then
       # We found a matching device. Perform variable assignments.
-      # Given the path /dev/mapper/1.encryptedvolume, extracts the basename.
-      local found_block_mapper_name
-      found_block_mapper_name=$(basename "$mapper")
-
       # The corresponding loop device, for example: /dev/loop1
       local found_loop_device
       found_loop_device=$(echo "$output" | grep 'device:' | awk '{print $2}')
+
+      local device_number
+      device_number=$(echo "$encrypted_file_name" | awk -F'.' '{print $1}')
+
+      # The path to the loop—of which we care about the mount point.
+      local mount_point
+      mount_point=$(echo "$output" | grep "loop:" | awk '{print $2}' | xargs dirname)
+
+      # The
       break
     fi
   done
 
-  if [ -z "$found_block_mapper_name" ]; then
+  if [ -n "$mount_point" ] && [ -n "$device_number" ]; then
     echo "No mapper was found for $1" >&2
     exit 1
   fi
 
-  # call: unmount_close_and_deloop 1.encryptedvolume /dev/loop1
-  unmount_close_and_deloop "$found_block_mapper_name" "$found_loop_device"
+  unmount_device "$mount_point" "$device_number"
+
+  cryptsetup close "$encrypted_file_name"
+  losetup -d "$found_loop_device"
+
+  sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
 }
 
 ##
