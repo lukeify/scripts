@@ -103,7 +103,7 @@ unmount_device() {
   local mount_point="$1"
   local device_number="$2"
 
-  unmount "$mount_point/$device_number"
+  umount "$mount_point/$device_number"
   # This parameter expansion solves SC2115.
   rm -r "$mount_point/${device_number:?}"
 }
