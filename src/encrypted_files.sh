@@ -109,28 +109,6 @@ unmount_device() {
 }
 
 ##
-# Utility function to unmount, close, and deloop a block device.
-#
-# Args:
-# $1: The name of the block mapper, ie. 1.encry
-# $2: The loop device location, ie. /dev/loop1
-#
-unmount_close_and_deloop() {
-    # Given a block name such as `1.encryptedvolume`, extracts only the number from that name.
-    local found_block_mapper_number
-    found_block_mapper_number=$(echo "$1" | awk -F'.' '{print $1}')
-
-    # Unmount the block, and delete the mount point
-    umount "/mnt/$found_block_mapper_number"
-    rm -r "/mnt/${found_block_mapper_number:?}"
-
-    cryptsetup close "$1"
-    losetup -d "$2"
-
-    sudo -u user DISPLAY=:0 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus notify-send "LUKS device ejected" "$1 $2"
-}
-
-##
 # Request confirmation from the user via the `y` character.
 # zsh-specific way of confirming input from the user. https://unix.stackexchange.com/a/198374
 #
@@ -320,7 +298,8 @@ close_all_block_devices() {
 
     if cryptsetup isLuks "$loop_device" && cryptsetup luksDump "$loop_device" | grep -q "fido2" && cryptsetup status "$dev" | grep -q "is active"; then
       echo "$dev is a LUKS device, is open, and is unlocked via FIDO2. Unmounting, closing, and delooping..."
-      unmount_close_and_deloop "$dev" "$loop_device"
+      # TODO: Replace this with individual function calls
+      # unmount_close_and_deloop "$dev" "$loop_device"
     fi
   done
 }
