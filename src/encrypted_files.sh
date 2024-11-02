@@ -38,7 +38,10 @@ setup_loop_device() {
   local encrypted_file_name="$1"
   local loop_device
 
-  if ! loop_device=$(losetup -f --show "$encrypted_file_name"); then
+  local device_number
+  device_number=$(echo "$encrypted_file_name" | awk -F'.' '{print $1}')
+
+  if ! loop_device=$(losetup --show "/dev/loop$device_number" "$encrypted_file_name"); then
     echo "Failed to set up loop device for $encrypted_file_name" >&2
     exit 1
   fi
