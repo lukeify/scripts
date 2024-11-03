@@ -18,6 +18,10 @@
 #
 # Pass the `-a` flag with no file arguments to close all devices.
 
+# ----------------------------------------------------
+# OPTIONS
+# ----------------------------------------------------
+
 # Don't print out pre-assigned local variables
 setopt TYPESET_SILENT
 # Early exit when a script returns a non-zero exit code
@@ -319,34 +323,32 @@ case "$1" in
   close)
     call=close_block_device
     ;;
-  close_all)
-    # TODO: This was changed to have an -a flag on close instead.
-    echo "Closing all block devices"
-    close_all_block_devices
-    exit 0
-    ;;
   *)
     echo "Please provide either 'create', 'open', or 'close to 'encrypted_files." >&2
     exit 1
     ;;
 esac
 
-# Accept the remaining arguments as paths to mountable block devices, and determine the count provided.
+# Accept the remaining arguments as paths to mountable block devices, and determine the count provided. If no
+# additional arguments are provided, assume that all mountable block devices in the current directory should be opened
+# or closed.
 block_device_paths=("${@:2}")
-# block_device_path_count=${#block_device_paths[@]}
-# TODO: If path count is 0, open or close all files in the current directory.
 
-for block_device_path in "${block_device_paths[@]}"; do
-  # echo "Block device: ${block_device_path}"
-  # When given a file, run the user-specified function on the block device path.
-  if [ -f "$block_device_path" ]; then
+# If no block_device_paths were given, operate on the entire directory.
+if (( ${#block_device_paths[@]} == 0 )); then
+  echo "No arguments given, operating on entire directory."
+  operable_files=([0-9]*.encrypted)
+else
+  operable_files=("${block_device_paths[@]}")
+fi
+
+for operable_file in "${operable_files[@]}"; do
+  # Check the file is a regular file, and perform the specified operation on it.
+  if [ -f "$operable_file" ]; then
     # Perform file operation
-    $call "$block_device_path"
-    # TODO: Handle directories
-    #  elif [ -d "$block-device_path" ]; then
-    #    # Perform dir operation
+    $call "$operable_file"
   else
-    echo "$block_device_path: Argument provided was not a file." >&2
+    echo "$operable_file: Argument provided was not a file." >&2
     exit 1
   fi
 done
