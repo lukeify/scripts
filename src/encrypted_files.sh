@@ -5,16 +5,16 @@
 # `cryptsetup`, and `mount`.
 # Usage to create an encrypted file:
 #
-# $ krypton create <size> <mount_point>
+# $ encrypted_files create <size>
 #
 # Usage to open an encrypted file:
 #
-# $ krypton open <path_to_file> <path_to_other_file>
+# $ encrypted_files open <path_to_file> <path_to_other_file>
 #
 # The file will be associated with a loop device, opened with cryptsetup, and mounted to a location on disk.
 # Usage to close a mounted block device:
 #
-# $ krypton close <path_to_file> <path_to_other_file>
+# $ encrypted_files close <path_to_file> <path_to_other_file>
 #
 # Pass the `-a` flag with no file arguments to close all devices.
 
@@ -130,29 +130,27 @@ confirm_with_message_prompt() {
 # ----------------------------------------------------
 
 ##
-# Creates a LUKS-encrypted block device. The name of the encrypted file that backs the block device will be the next
-# sequential number in the directory, i.e. if a `3.encrypted` file exists, then the next file name will be
-# `4.encrypted`.
+# Creates a LUKS-encrypted block device, mounted to the current location on disk. The name of the encrypted file that
+# backs the block device will be the next sequential number in the directory, i.e. if a `3.encrypted` file exists, then
+# the next file name will be `4.encrypted`.
 #
 # During the process, the user will be prompted to insert their two FIDO2 security keys which will be used to encrypt
 # and secure the LUKS volume.
 #
 # Args:
 # $1: The number of megabytes the encrypted file should be. Specify 1024 for 1GB, 2048 for 2GB, etc.
-# $2: The mount point for the created block file on disk.
 #
 create_block_device() {
   local megabytes=$1
-  local mount_point=$2
 
   local i=1
-  while [[ -e "$mount_point/$i.encrypted" ]]; do ((i++)); done;
+  while [[ -e "$i.encrypted" ]]; do ((i++)); done;
   local encrypted_file_name="$i.encrypted"
 
-  dd if=/dev/zero of="$mount_point/$encrypted_file_name" bs=1M count="$megabytes" status=none
+  dd if=/dev/zero of="$encrypted_file_name" bs=1M count="$megabytes" status=none
 
   local loop_device
-  loop_device=$(setup_loop_device "$mount_point/$encrypted_file_name")
+  loop_device=$(setup_loop_device "$encrypted_file_name")
   local device_number
   device_number=$(get_loop_device_number "$loop_device")
 
@@ -205,9 +203,9 @@ create_block_device() {
 
   confirm_with_message_prompt "Confirm (y) when the mount point is available"
 
-  mount_device "$mount_point" "$device_number"
+  mount_device "$PWD" "$device_number"
   # change ownership of the mounted partition to ensure the user can write to it.
-  chown user:user "$mount_point/$device_number"
+  chown user:user "$device_number"
 }
 
 ##
@@ -312,7 +310,7 @@ close_all_block_devices() {
 # variable `$call`. If the argument provided is "close_all", call the corresponding method and finish.
 case "$1" in
   create)
-    create_block_device "$2" "$3"
+    create_block_device "$2"
     exit 0
     ;;
   open)
