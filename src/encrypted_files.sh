@@ -203,7 +203,8 @@ create_block_device() {
 
   # Open partition, and initialise an EXT4 filesystem.
   cryptsetup open --token-only "$loop_device" "$device_number.unencrypted"
-  mkfs.ext4 "/dev/mapper/$device_number.unencrypted"
+  # EXT4 filesystems have 5% free space reserved by default. It's unlikely we'd need this, so let's lower than to 2%.
+  mkfs.ext4 -m 2 "/dev/mapper/$device_number.unencrypted"
 
   confirm_with_message_prompt "Confirm (y) when the mount point is available"
 
