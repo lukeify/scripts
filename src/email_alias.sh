@@ -7,8 +7,6 @@
 # Arguments:
 # $1 The prefix that should be applied to the randomly-generated string of characters. This is provided by the user.
 #
-# Environment variables:
-# SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with.
 # Variables stored in ~/.scripts/email_alias:
 # SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with. This shall be prefixed with the
 # `@` symbol, i.e. `@luke.example`.
