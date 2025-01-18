@@ -7,14 +7,25 @@
 # Arguments:
 # $1 The prefix that should be applied to the randomly-generated string of characters. This is provided by the user.
 #
-# Environment variables:
-# SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with.
+# Variables stored in ~/.scripts/email_alias:
+# SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with. This shall be prefixed with the
+# `@` symbol, i.e. `@luke.example`.
 # SIMPLE_LOGIN_API_TOKEN Shall be the API token used to communicate with SimpleLogin.
 #
 # Expected utilities:
+# curl: Used to make requests to SimpleLogin.
 # jq: Used to parse JSON responses from SimpleLogin.
 #
-set -e
+
+# Read from config file
+config_file="$HOME/.scripts/email_alias"
+
+if [[ ! -f "$config_file" ]]; then
+  echo "Error: configuration file $config_file not found." >&2
+  exit 1
+fi
+
+source "$config_file"
 
 api_fqdn="https://app.simplelogin.io/api"
 auth_header="Authentication: $SIMPLE_LOGIN_API_TOKEN"
