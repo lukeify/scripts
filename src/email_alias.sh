@@ -12,6 +12,7 @@
 # SIMPLE_LOGIN_API_TOKEN Shall be the API token used to communicate with SimpleLogin.
 #
 # Expected utilities:
+# curl: Used to make requests to SimpleLogin.
 # jq: Used to parse JSON responses from SimpleLogin.
 #
 set -e
