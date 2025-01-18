@@ -10,6 +10,8 @@
 # Environment variables:
 # SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with.
 # Variables stored in ~/.scripts/email_alias:
+# SIMPLE_LOGIN_SUFFIX Shall be the domain name the email alias should be created with. This shall be prefixed with the
+# `@` symbol, i.e. `@luke.example`.
 # SIMPLE_LOGIN_API_TOKEN Shall be the API token used to communicate with SimpleLogin.
 #
 # Expected utilities:
