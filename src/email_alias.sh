@@ -14,14 +14,63 @@
 # Expected utilities:
 # jq: Used to parse JSON responses from SimpleLogin.
 #
-set -e
 
-api_fqdn="https://app.simplelogin.io/api"
-auth_header="Authentication: $SIMPLE_LOGIN_API_TOKEN"
+##
+# Arguments:
+# $1 The endpoint to make the request to.
+# $2 The HTTP method to use.
+# $3 The body of the request, if any.
+#
+simplelogin_api() {
+  local api_fqdn="https://app.simplelogin.io/api"
+  local http_method=${2:-"GET"}
+  local body="$3"
+
+  if [[ -z "$body" ]]; then
+      curl -w "\n%{http_code}" -s -X "$http_method" "$api_fqdn/$1" \
+        -H "Authentication: $SIMPLE_LOGIN_API_TOKEN"
+  else
+      curl -w "\n%{http_code}" -s -X "$http_method" "$api_fqdn/$1" \
+        -H "Authentication: $SIMPLE_LOGIN_API_TOKEN" \
+        -H "Content-Type: application/json" \
+        -d "$body"
+  fi
+}
+
+##
+# Arguments:
+# $1 The response from the API call.
+#
+status_code() {
+  local res
+  read -r -d '' res
+  echo "$res" | awk 'END{print}'
+}
+
+##
+# Arguments:
+# $1 The response from the API call.
+#
+res_body() {
+  local res
+  read -r -d '' res
+  echo "$res" | awk 'NR==1{body=$0} END{print body}'
+}
 
 if [[ -z "$1" || -z "$SIMPLE_LOGIN_SUFFIX" || -z "$SIMPLE_LOGIN_API_TOKEN" ]]; then
   echo "Error: Missing required prefix, SIMPLE_LOGIN_SUFFIX, or SIMPLE_LOGIN_API_TOKEN." >&2
   exit 1
+fi
+
+# Before creating a new email alias, check if one already exists for the given prefix.
+existing_email_address=$(simplelogin_api "v2/aliases?page_id=0" "GET" "{ \"query\": \"$1\" }" | \
+  res_body | \
+  jq -r ".aliases[] | select(.email | startswith(\"$1\")) | .email")
+
+if [ "$existing_email_address" ]; then
+  echo "$existing_email_address" | pbcopy
+  echo "Existing email alias \"$existing_email_address\" copied to your clipboard."
+  exit 0
 fi
 
 # Chosen based on the discussion from https://security.stackexchange.com/a/183951
@@ -29,10 +78,12 @@ fi
 secure_chars=$(LC_ALL=C tr -dc 'a-z0-9' < /dev/urandom | head -c 16; echo)
 
 # Get the Mailbox ID that the alias should be added to.
-mailbox_id=$(curl -s "${api_fqdn}/v2/mailboxes" -H "$auth_header" | jq '.mailboxes[0].id')
+mailbox_id=$(simplelogin_api "v2/mailboxes" | res_body | jq '.mailboxes[0].id')
 
 # Retrieve the signed suffix that the alias should be created for.
-signed_suffix=$(curl -s "${api_fqdn}/v5/alias/options" -H "$auth_header" | jq -r ".suffixes[] | select(.suffix == \"$SIMPLE_LOGIN_SUFFIX\") | .signed_suffix")
+signed_suffix=$(simplelogin_api "v5/alias/options" | \
+  res_body | \
+  jq -r ".suffixes[] | select(.suffix == \"$SIMPLE_LOGIN_SUFFIX\") | .signed_suffix")
 
 read -r -d '' json <<JSON
 {
@@ -43,18 +94,14 @@ read -r -d '' json <<JSON
 }
 JSON
 
-response=$(curl -w "\n%{http_code}" -s "${api_fqdn}/v3/alias/custom/new" \
-  -H "$auth_header" \
-  -H "Content-Type: application/json" \
-  -d "$json")
-
-sl_response_code=$(echo "$response" | awk 'END{print $0}')
+sl_response=$(simplelogin_api "v3/alias/custom/new" "POST" "$json")
+sl_response_code=$(echo "$sl_response" | status_code)
 
 # Ensure the status code is 201.
 if [ "$sl_response_code" -eq 201 ]; then
-  generated_address=$(echo "$response" | awk 'NR==1{body=$0} END{print body}' | jq -r ".alias")
+  generated_address=$(echo "$sl_response" | res_body | jq -r ".alias")
   echo "$generated_address" | pbcopy
   echo "Generated email alias \"$generated_address\" and copied it to your clipboard."
 else
-  echo "Could not generate email alias! Response code was $sl_response_code."
+  echo "Could not generate email alias! Response code was $sl_response_code with error $(echo "$sl_response" | res_body)."
 fi
