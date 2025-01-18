@@ -16,7 +16,6 @@
 # curl: Used to make requests to SimpleLogin.
 # jq: Used to parse JSON responses from SimpleLogin.
 #
-set -e
 
 # Read from config file
 config_file="$HOME/.scripts/email_alias"
